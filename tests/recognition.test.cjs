@@ -62,3 +62,70 @@ test('usa a chave pública integrada mesmo com definições antigas sem chave', 
   assert.ok(calls[0].key.startsWith('rf_'));
   assert.equal(html.includes('id="publicKey"'),false);
 });
+function recognitionHarness(predictions) {
+  const nodes = new Map(), draws = [], scheduled = [];
+  let stopped = 0, paused = 0, requested = 0;
+  function node(id) {
+    if (!nodes.has(id)) nodes.set(id, {
+      hidden:true, style:{}, classList:{add(){},remove(){},toggle(){}},
+      addEventListener(){}, getContext(){return {drawImage(...args){draws.push({id,args});}};},
+      getBoundingClientRect(){return {left:0,top:0,width:300,height:300};},
+      videoWidth:1280,videoHeight:720,readyState:4,
+      pause(){paused++;}, async play(){}
+    });
+    return nodes.get(id);
+  }
+  const media = {getTracks(){return [{stop(){stopped++;}}];}};
+  const scope = {
+    document:{getElementById:node,createElement:()=>node('cropCanvas'),addEventListener(){}},
+    window:{addEventListener(){},isSecureContext:true},
+    navigator:{mediaDevices:{async getUserMedia(){requested++;return media;}}},
+    localStorage:{getItem(){return null;}},
+    setTimeout(fn,delay){scheduled.push({fn,delay});return scheduled.length;}, clearTimeout(){},
+    async createImageBitmap(){return {close(){}};},
+    testEngine:{async infer(){return predictions;}},testStream:media
+  };
+  vm.createContext(scope); vm.runInContext(source,scope);
+  vm.runInContext('running=true; generation=12; workerId=7; engine=testEngine; stream=testStream;',scope);
+  return {scope,node,draws,scheduled,get stopped(){return stopped;},get paused(){return paused;},get requested(){return requested;}};
+}
+test('congela o fotograma analisado, conserva o resultado e para a câmara até ao seguinte', async () => {
+  const h = recognitionHarness([{class:'beaker',confidence:.87}]);
+  await h.scope.recognize(12);
+  assert.equal(h.node('resultName').textContent,'Gobelé');
+  assert.equal(h.node('resultConfidence').textContent,'87%');
+  assert.equal(h.node('capturedFrame').hidden,false);
+  assert.equal(h.node('nextButton').hidden,false);
+  assert.equal(h.stopped,1); assert.equal(h.paused,1);
+  assert.equal(vm.runInContext('running',h.scope),false);
+  assert.equal(h.scheduled.length,0);
+  assert.equal(h.draws[0].id,'capturedFrame');
+  assert.equal(h.draws[1].args[0],h.node('capturedFrame'));
+  // O mesmo worker é reutilizado; a câmara e a análise só retomam por ação do aluno.
+  h.scope.testEngine.infer = async () => [];
+  await h.scope.startCamera();
+  await new Promise(setImmediate);
+  assert.equal(h.requested,1);
+  assert.equal(h.node('capturedFrame').hidden,true);
+  assert.equal(h.node('nextButton').hidden,true);
+  assert.equal(vm.runInContext('running',h.scope),true);
+  assert.equal(h.node('resultConfidence').textContent,'—');
+});
+test('continua a procurar quando nenhuma previsão atinge a confiança mínima', async () => {
+  const h = recognitionHarness([{class:'beaker',confidence:.4}]);
+  await h.scope.recognize(12);
+  assert.equal(h.node('capturedFrame').hidden,true);
+  assert.equal(h.stopped,0);
+  assert.equal(vm.runInContext('running',h.scope),true);
+  assert.equal(h.scheduled.length,1);
+});
+test('ignora um resultado que chega depois de cancelar a análise', async () => {
+  const h = recognitionHarness([]);
+  h.scope.testEngine.infer = async () => {
+    vm.runInContext('generation++; running=false;',h.scope);
+    return [{class:'beaker',confidence:.99}];
+  };
+  await h.scope.recognize(12);
+  assert.equal(h.node('capturedFrame').hidden,true);
+  assert.equal(h.stopped,0); assert.equal(h.scheduled.length,0);
+});
