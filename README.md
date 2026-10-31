@@ -7,6 +7,7 @@ Aplicação em português para computador e telemóvel: câmara, mira central e 
 1. Abra <https://chgpires.github.io/reconhecedor-material-laboratorio/> no computador ou telemóvel.
 2. Toque em **Ativar câmara**, autorize o acesso e enquadre um só objeto dentro dos quatro cantos. Não é necessário criar conta ou introduzir uma chave. O telemóvel pede preferencialmente a câmara traseira. **Trocar câmara** pede a câmara do lado oposto; num dispositivo com uma só câmara pode manter-se a mesma.
 3. As **Definições** são opcionais: permitem mudar o modelo e a confiança mínima. Inicialmente são usados `chemlab-1yg0i/3` e 60%.
+4. Quando um material é reconhecido acima do limiar, a imagem analisada fica congelada com o nome e a confiança visíveis. A câmara e o reconhecimento param. Toque em **Reconhecer seguinte** para retomar a câmara e identificar outro objeto. A imagem fica apenas temporariamente na memória do browser.
 
 O modelo e a biblioteca precisam de Internet para carregar. Depois de carregado, o reconhecimento corre localmente no browser, através de inferencejs 1.3.0. A aplicação não guarda fotografias nem envia imagens para uma API de reconhecimento. O carregamento dos recursos e a autenticação pública comunicam com os respetivos fornecedores. O desempenho depende do dispositivo e do suporte a aceleração gráfica.
 
