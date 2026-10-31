@@ -40,10 +40,8 @@
 </main>
 <dialog id="settingsDialog" aria-labelledby="settingsTitle">
   <form id="settingsForm">
-    <h2 id="settingsTitle">Preparar o reconhecimento</h2>
-    <p>Introduza a chave <strong>pública (Publishable Key)</strong> das definições do seu espaço Roboflow. A chave privada não deve ser usada nesta aplicação.</p>
-    <label for="publicKey">Chave pública do Roboflow</label><input id="publicKey" type="password" autocomplete="off" spellcheck="false" placeholder="Cole aqui a Publishable Key" required>
-    <label class="check"><input id="rememberKey" type="checkbox"><span>Recordar neste dispositivo<div class="help">Use apenas em equipamentos pessoais. Por defeito, a chave fica apenas nesta sessão.</div></span></label>
+    <h2 id="settingsTitle">Definições de reconhecimento</h2>
+    <p>A aplicação está pronta a usar. Aqui pode ajustar o modelo e a confiança mínima.</p>
     <label for="modelId">Modelo</label><input id="modelId" value="chemlab-1yg0i/3" required spellcheck="false" autocomplete="off"><div class="help">Projeto/versão (ex.: chemlab-1yg0i/3) ou identificador completo workspace/modelo. O modelo tem de suportar inferencejs.</div>
     <label for="threshold">Confiança mínima <output id="thresholdOutput" for="threshold">60%</output></label><input id="threshold" type="range" min="20" max="95" step="5" value="60">
     <p class="dialog-error" id="settingsError" role="alert" hidden></p>
@@ -53,7 +51,8 @@
 </dialog>
 <script>
 'use strict';
-// A chave pública é introduzida no browser; nunca incluir uma chave privada neste ficheiro.
+// Publishable Key destinada a utilização pública no browser. Nunca usar uma chave privada.
+const PUBLIC_KEY = 'rf_2MtGExNDKoeBfykVVJ6sUBUy3zy1';
 const DEFAULT_MODEL = 'chemlab-1yg0i/3';
 const STORAGE_KEY = 'laboratorio.settings.v1';
 const $ = id => document.getElementById(id);
@@ -61,10 +60,10 @@ const video = $('video');
 const canvas = document.createElement('canvas');
 canvas.width = canvas.height = 640;
 const context = canvas.getContext('2d');
-let config = { key: '', model: DEFAULT_MODEL, threshold: 0.6, remember: false };
+let config = { model: DEFAULT_MODEL, threshold: 0.6 };
 let stream = null, engine = null, workerId = null, loadingModel = null;
 let facing = 'environment', running = false, starting = false, generation = 0, timer = null;
-let pendingStart = false, inferenceBusy = false;
+let inferenceBusy = false;
 const translations = {
   beaker:'Gobelé', 'test tube':'Tubo de ensaio', buret:'Bureta', burette:'Bureta',
   'conical flask':'Erlenmeyer', 'erlenmeyer flask':'Erlenmeyer', erlenmeyer:'Erlenmeyer',
@@ -101,14 +100,14 @@ function readStoredSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
     if (saved && typeof saved.model === 'string' && Number.isFinite(saved.threshold)) {
-      config = { key: typeof saved.key === 'string' ? saved.key : '', model: saved.model,
-        threshold: Math.min(.95, Math.max(.2, saved.threshold)), remember: !!saved.key };
+      config = { model: saved.model,
+        threshold: Math.min(.95, Math.max(.2, saved.threshold)) };
     }
   } catch { /* O armazenamento pode estar bloqueado; a sessão continua a funcionar. */ }
 }
 function openSettings() {
-  $('publicKey').value = config.key; $('modelId').value = config.model;
-  $('rememberKey').checked = config.remember; $('threshold').value = config.threshold * 100;
+  $('modelId').value = config.model;
+  $('threshold').value = config.threshold * 100;
   $('thresholdOutput').textContent = Math.round(config.threshold * 100) + '%';
   $('settingsError').hidden = true;
   $('settingsDialog').showModal();
@@ -144,8 +143,8 @@ async function ensureModel() {
     const sdk = await loadSDK();
     engine ||= new sdk.InferenceEngine();
     const model = parseModel(config.model);
-    workerId = model.id ? await engine.startWorkerByModelId(model.id, config.key)
-      : await engine.startWorker(model.project, model.version, config.key);
+    workerId = model.id ? await engine.startWorkerByModelId(model.id, PUBLIC_KEY)
+      : await engine.startWorker(model.project, model.version, PUBLIC_KEY);
   })();
   try { await loadingModel; } finally { loadingModel = null; }
 }
@@ -170,7 +169,6 @@ async function startCamera() {
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
     showMessage('A câmara precisa de uma ligação segura. Abra a aplicação no endereço HTTPS do GitHub Pages ou em localhost no computador.'); return;
   }
-  if (!config.key) { pendingStart = true; openSettings(); return; }
   starting = true; const token = ++generation;
   showMessage(); $('startButton').disabled = true; $('stopButton').disabled = false;
   $('settingsButton').disabled = true; setStatus('A pedir acesso à câmara…');
@@ -227,25 +225,24 @@ async function recognize(token) {
   } finally { if (bitmap) bitmap.close(); inferenceBusy = false; }
   if (running && token === generation) timer = setTimeout(() => recognize(token), 250);
 }
-$('settingsButton').addEventListener('click', () => { pendingStart = false; openSettings(); });
-$('cancelSettings').addEventListener('click', () => { pendingStart = false; $('settingsDialog').close(); });
-$('settingsDialog').addEventListener('cancel', () => { pendingStart = false; });
+$('settingsButton').addEventListener('click', openSettings);
+$('cancelSettings').addEventListener('click', () => $('settingsDialog').close());
 $('threshold').addEventListener('input', () => { $('thresholdOutput').textContent = $('threshold').value + '%'; });
 $('settingsForm').addEventListener('submit', async event => {
   event.preventDefault();
-  const key = $('publicKey').value.trim(), model = $('modelId').value.trim();
-  try { if (!key) throw new Error('Introduza a chave pública do Roboflow.'); parseModel(model); }
+  const model = $('modelId').value.trim();
+  try { parseModel(model); }
   catch (error) { $('settingsError').textContent = error.message; $('settingsError').hidden = false; return; }
-  const restart = pendingStart || running;
-  pendingStart = false; stopCamera();
+  const restart = running;
+  stopCamera();
   // Aguarda qualquer inferência em curso antes de destruir o worker anterior.
   $('settingsButton').disabled = true; $('startButton').disabled = true;
   $('settingsDialog').close();
   try {
     while (inferenceBusy) await new Promise(resolve => setTimeout(resolve, 50));
     if (workerId !== null) { await engine.stopWorker(workerId); workerId = null; }
-    config = { key, model, threshold:Number($('threshold').value)/100, remember:$('rememberKey').checked };
-    try { localStorage.setItem(STORAGE_KEY,JSON.stringify({ ...config, key:config.remember ? config.key : '' })); }
+    config = { model, threshold:Number($('threshold').value)/100 };
+    try { localStorage.setItem(STORAGE_KEY,JSON.stringify(config)); }
     catch { showMessage('O browser não permitiu guardar as definições. Pode continuar a usá-las nesta sessão.'); }
     if (restart) await startCamera();
   } catch { showMessage('Não foi possível aplicar as definições. Recarregue a página e tente novamente.'); }
