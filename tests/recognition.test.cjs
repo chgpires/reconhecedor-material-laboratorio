@@ -45,3 +45,20 @@ test('aceita modelos antigos e atuais, rejeitando identificadores inválidos', (
     assert.throws(() => sandbox.parseModel(invalid));
   }
 });
+test('usa a chave pública integrada mesmo com definições antigas sem chave', async () => {
+  const calls = [];
+  const isolated = { ...sandbox, localStorage: { getItem() {
+    return JSON.stringify({model:'chemlab-1yg0i/3',threshold:.6,key:'',remember:false});
+  } }, window: { addEventListener() {}, inferencejs: { InferenceEngine: class {
+    async startWorker(project,version,key) { calls.push({project,version,key}); return 7; }
+  } } } };
+  vm.createContext(isolated);
+  vm.runInContext(source,isolated);
+  await isolated.ensureModel();
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].project,'chemlab-1yg0i');
+  assert.equal(calls[0].version,3);
+  assert.equal(calls[0].key,vm.runInContext('PUBLIC_KEY',isolated));
+  assert.ok(calls[0].key.startsWith('rf_'));
+  assert.equal(html.includes('id="publicKey"'),false);
+});
