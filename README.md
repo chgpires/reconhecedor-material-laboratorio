@@ -4,14 +4,13 @@ Aplicação em português para computador e telemóvel: câmara, mira central e 
 
 ## Começar
 
-1. Publique o ficheiro em GitHub Pages (instruções abaixo) e abra o endereço HTTPS.
-2. Em **Definições**, introduza a **Publishable Key** das definições do seu workspace Roboflow. Não use a chave privada da API.
-3. Mantenha inicialmente `chemlab-1yg0i/3` e a confiança mínima de 60%.
-4. Toque em **Ativar câmara**, autorize o acesso e enquadre um só objeto dentro dos quatro cantos. O telemóvel pede preferencialmente a câmara traseira. **Trocar câmara** pede a câmara do lado oposto; num dispositivo com uma só câmara pode manter-se a mesma.
+1. Abra <https://chgpires.github.io/reconhecedor-material-laboratorio/> no computador ou telemóvel.
+2. Toque em **Ativar câmara**, autorize o acesso e enquadre um só objeto dentro dos quatro cantos. Não é necessário criar conta ou introduzir uma chave. O telemóvel pede preferencialmente a câmara traseira. **Trocar câmara** pede a câmara do lado oposto; num dispositivo com uma só câmara pode manter-se a mesma.
+3. As **Definições** são opcionais: permitem mudar o modelo e a confiança mínima. Inicialmente são usados `chemlab-1yg0i/3` e 60%.
 
 O modelo e a biblioteca precisam de Internet para carregar. Depois de carregado, o reconhecimento corre localmente no browser, através de inferencejs 1.3.0. A aplicação não guarda fotografias nem envia imagens para uma API de reconhecimento. O carregamento dos recursos e a autenticação pública comunicam com os respetivos fornecedores. O desempenho depende do dispositivo e do suporte a aceleração gráfica.
 
-A chave fica na memória da página. A opção **Recordar neste dispositivo** guarda-a no armazenamento local; desmarque-a e aplique as definições para remover a cópia persistente. Nenhuma chave está incluída no repositório.
+A Publishable Key está configurada no HTML para utilização por todos os alunos. É uma credencial pública destinada pelo Roboflow a aplicações no browser; nenhuma chave privada deve ser incluída no código. O armazenamento local guarda apenas as opções de modelo e confiança mínima; chaves guardadas por versões antigas são ignoradas.
 
 ## Modelo inicial e limitações
 
